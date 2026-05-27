@@ -1,0 +1,16 @@
+goal?
+create a service that used at least one agent and it could help on our daily life
+
+how did we make it?
+we hosted the code.py on a node server that was accesible from the clients. The AI where from an claude API key and a self-hosted AI.
+
+what have we used? 
+streamlit as st
+requests
+urllib.parse
+re
+Anthropic
+qwen 7.2b
+llama 3.2
+tailscale
+reverse dns

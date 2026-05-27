@@ -5,7 +5,7 @@ import re
 from anthropic import Anthropic
 
 # API KEY 
-ANTHROPIC_API_KEY = "not that easy"
+ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
 class OllamaClient:
     def __init__(self, host="http://100.86.250.7:11434"):

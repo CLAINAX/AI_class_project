@@ -30,3 +30,6 @@ How can you acces the code?
 1. Clone repository
 2. Install repositorys: `pip install -r requirements.txt`
 3. Run the app (you need to be inside the Tailscale network to acces the AI's ports: `streamlit run code.py`
+
+
+![Clinet](image.png)

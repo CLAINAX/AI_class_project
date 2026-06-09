@@ -1,11 +1,9 @@
 import streamlit as st
 import requests
-import urllib.parse
-import re
 from anthropic import Anthropic
 
 # API KEY 
-ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
+ANTHROPIC_API_KEY = "KEY"
 
 class OllamaClient:
     def __init__(self, host="http://100.86.250.7:11434"):
@@ -22,41 +20,39 @@ class OllamaClient:
         except Exception as e:
             return f"Ollama Error: {str(e)}"
 
-# Anthropic Client added
+# Anthropic Client (Thinking)
 class AnthropicClient:
     def __init__(self, api_key):
         self.client = Anthropic(api_key=api_key)
-        # Haiku 4.5
-        self.model = "claude-haiku-4-5"
+        self.model = "claude-opus-4-6"
+        
     def request(self, prompt, system=""):
         try:
             message = self.client.messages.create(
                 model=self.model,
-                max_tokens=1000,
-                temperature=0.4,
+                max_tokens=5000,
                 system=system,
+                thinking={"type": "adaptive"},
                 messages=[{"role": "user", "content": prompt}]
             )
-            return message.content[0].text
+            
+            for block in message.content:
+                if getattr(block, 'type', '') == 'text':
+                    return block.text
+            return str(message.content) 
         except Exception as e:
             return f"Anthropic Error: {str(e)}"
 
 # SearXNG
 def buscar_imagen_real(query, searx_url="http://100.126.29.86:8080/search"):
-    params = {
-        'q': query,
-        'format': 'json',
-        'categories': 'images',
-        'safesearch': 1
-    }
+    params = {'q': query, 'format': 'json', 'categories': 'images', 'safesearch': 1}
     try:
         resp = requests.get(searx_url, params=params, timeout=10)
         results = resp.json().get('results', [])
         if results:
-            # Devolvemos la primera imagen que parezca válida
             return results[0].get('img_src') or results[0].get('thumbnail')
     except Exception as e:
-        print(f"SearXNG Error: {e}")
+        pass
     return None
 
 class NotebookOrchestrator:
@@ -70,78 +66,105 @@ class NotebookOrchestrator:
         draft = self.local_client.request(self.models["fast"], f"Briefly explain: {topic}", "You are a technical expert.")
         yield "draft", draft
 
-        # 2. feedback (Cloud API)
+        # 2. feedback
         critique = self.cloud_client.request(f"Critique this text:\n{draft}", "You are a strict auditor.")
         yield "critique", critique
 
-        # 3. final (Cloud API)
-        final = self.cloud_client.request(f"Improve this using the critique:\n{draft}\n\nCritique: {critique}", "You are a chief editor.")
+        # 3. final (Formato limpio por puntos)
+        final_prompt = f"Improve this using the critique:\n{draft}\n\nCritique: {critique}"
+        system_prompt = "You are a chief editor. Output the final result as a clear, easy-to-read list of bullet points. Do not use code blocks for normal text."
+        final = self.cloud_client.request(final_prompt, system_prompt)
         yield "final", final
 
-        # 4. ASCII tree (Local GPU)
+        # 4. ASCII tree
         tree = self.local_client.request(self.models["smart"], f"Create an ASCII concept tree (only the tree) about:\n{final}", "Create a visual hierarchy using | and +--")
         yield "tree", tree
 
-        # 5. def keywords for search (Local GPU)
-        keywords = self.local_client.request(self.models["fast"], f"Give me 3 keywords to search for a professional photo of: {topic}", "Respond only with the keywords in English.")
+        # 5. def keywords
+        keywords = self.local_client.request(self.models["fast"], f"Give me 3 keywords to search for a professional photo of: {topic}", "Respond only with the keywords in English, separated by commas.")
         yield "keywords", keywords
 
 def main():
-    st.set_page_config(page_title="IA NotebookLM Service", layout="wide")
+    # --- UI Configuration (Diseño Coherente) ---
+    st.set_page_config(page_title="Colab-Style AI Assistant", layout="wide", initial_sidebar_state="expanded")
     
-    st.sidebar.title("Temporal Infrastructure")
-    server_ip = st.sidebar.text_input("Server_2 (Ollama)", "100.86.250.7")
-    searx_ip = st.sidebar.text_input("Server_1 (SearXNG)", "100.126.29.86:8080")
+    # CSS Ajustado: Fuente legible para textos, fuente 'hacker' para interfaz
+    st.markdown("""
+        <style>
+            .stApp { background-color: #1e1e1e; color: #d4d4d4; font-family: 'Segoe UI', sans-serif; }
+            [data-testid="stSidebar"] { background-color: #252526; border-right: 1px solid #333; }
+            h1, h2, h3 { color: #569cd6; font-weight: normal; font-family: 'Consolas', monospace; }
+            .stTextInput > div > div > input, .stTextArea > div > div > textarea {
+                background-color: #1e1e1e !important; color: #d4d4d4 !important; border: 1px solid #333 !important; font-family: 'Consolas', monospace;
+            }
+            .stButton > button { background-color: #0e639c; color: white; border: none; border-radius: 2px; padding: 4px 12px; font-family: 'Consolas', monospace; }
+            .stButton > button:hover { background-color: #1177bb; }
+            code { background-color: #1e1e1e !important; color: #ce9178 !important; }
+            pre { background-color: #1e1e1e !important; border: 1px solid #333; border-radius: 4px; }
+            .streamlit-expanderHeader { color: #c586c0; background-color: #252526; font-family: 'Consolas', monospace; }
+            .streamlit-expanderContent { background-color: #1e1e1e; border: 1px solid #333; border-top: none; }
+            .console-text { font-family: 'Consolas', monospace; color: #4EC9B0; }
+        </style>
+    """, unsafe_allow_html=True)
     
-    st.title("Hello, I am your schematic AI assistant.")
+    st.sidebar.title("ENV")
+    server_ip = st.sidebar.text_input("Local Inference Node", "100.86.250.7")
+    searx_ip = st.sidebar.text_input("Search Node", "100.126.29.86:8080")
+    
+    st.markdown("<h1>EnHuEr</h1>", unsafe_allow_html=True)
     st.markdown("---")
 
-    user_input = st.text_input("Should we start?", placeholder="e.g.: LLM, Quantum Physics...")
+    st.markdown("<h3 class='console-text'>[1] Input Cell</h3>", unsafe_allow_html=True)
+    user_input = st.text_area("Enter your prompt:", placeholder="Ej: ¿Qué es un LLM?", height=100)
 
-    if st.button("RUN"):
+    col_run, col_spacer = st.columns([1, 10])
+    with col_run:
+        run_clicked = st.button("▶ Run Cell")
+
+    if run_clicked:
         if user_input:
             local_client = OllamaClient(f"http://{server_ip}:11434")
             cloud_client = AnthropicClient(ANTHROPIC_API_KEY)
             orch = NotebookOrchestrator(local_client, cloud_client)
             
-            col1, col2 = st.columns([1, 1.5])
+            st.markdown("---")
+            st.markdown("<h3 class='console-text'>[2] Execution Output</h3>", unsafe_allow_html=True)
             
-            with col1:
+            col_text, col_visual = st.columns([1.5, 1])
+            
+            with col_text:
                 status = st.empty()
-                res_draft = ""
                 res_critique = ""
                 
                 for step, content in orch.run_workflow(user_input):
                     if step == "draft":
-                        res_draft = content
-                        status.info("Analyzing concepts...")
+                        status.info("`[Local GPU] Drafting base concepts...`")
                     elif step == "critique":
                         res_critique = content
-                        status.info("Auditing information...")
+                        status.info("`[Cloud API] Auditing information...`")
                     elif step == "final":
-                        st.subheader("Output (final)")
-                        st.success(content)
-                        with st.expander("See process"):
-                            st.markdown(f'<div style="color:red">{res_critique}</div>', unsafe_allow_html=True)
-                        status.info("Structuring hierarchy...")
-                    
+                        st.markdown("### Synthesis Result:")
+              #si
+                        st.markdown(content)
+                        with st.expander("Show Audit Logs"):
+                            st.markdown(f'<div style="color:#d16969; font-family:monospace; font-size:0.9em;">{res_critique}</div>', unsafe_allow_html=True)
+                        status.info("`[Local GPU] Structuring hierarchy...`")
                     elif step == "tree":
-                        st.subheader("Scheme")
-                        st.code(content, language="text")
-                        status.info("Searching for reference image...")
-                    
+                        with col_visual:
+                            st.markdown("### Concept Hierarchy:")
+                            st.code(content, language="text")
+                        status.info("`[Local Server] Fetching external assets...`")
                     elif step == "keywords":
-                        # call SearXNG
                         url_img = buscar_imagen_real(content, f"http://{searx_ip}/search")
-                        if url_img:
-                            st.subheader("Concept idea")
-                            st.image(url_img, caption=f"Image retrieved via SearXNG for: {user_input}")
-                        else:
-                            st.warning("No professional image was found on the search server.")
-                        
-                        status.success("Error number: 0")
+                        with col_visual:
+                            if url_img:
+                                st.markdown("### Reference Asset:")
+                                st.image(url_img, caption=f"Asset linked to: {user_input}")
+                            else:
+                                st.warning("`ResourceNotFoundException: No image located.`")
+                        status.success("`Execution finished with exit code 0.`")
         else:
-            st.warning("Input not valid")
+            st.error("`SyntaxError: Input cell cannot be empty.`")
 
 if __name__ == "__main__":
     main()
